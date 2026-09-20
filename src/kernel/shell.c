@@ -12,6 +12,9 @@
 #include "uri.h"
 #include "sha256.h"
 #include "array.h"
+#include "caps.h"
+#include "exp.h"
+#include "instr.h"
 
 extern char _user_hello_start[];
 
@@ -27,6 +30,7 @@ static void run_cmd(char *cmd)
     if (eq(cmd, "help")) {
         kprint("commands: help ps free run blk host put get uri objects\n");
         kprint("          derive lineage mkarr arrget\n");
+        kprint("          mksample mkproto instr cap irun exp\n");
     } else if (cmd[0] == 'h' && cmd[1] == 'o' && cmd[2] == 's' &&
                cmd[3] == 't' && cmd[4] == ' ') {
         const char *msg = cmd + 5;
@@ -205,6 +209,129 @@ static void run_cmd(char *cmd)
             kprint("%u elems\n%s\n", n, buf);
         } else {
             kprint("arrget: not an array or too big\n");
+        }
+    } else if (memcmp(cmd, "mksample ", 9) == 0 ||
+               memcmp(cmd, "mkproto ", 8) == 0) {
+        /* mksample <text> / mkproto <text> — typed objects */
+        int issample = cmd[2] == 's';
+        uint32_t type = issample ? OBJ_SAMPLE : OBJ_PROTOCOL;
+        const char *kind = issample ? "sample" : "protocol";
+        const char *text = cmd + (issample ? 9 : 8);
+        char body[256];
+        int n = ksnprintf(body, sizeof(body), "%s v1\nnote %s\n",
+                          kind, text);
+        uint8_t h[SHA256_LEN];
+        if (obj_put(type, body, (uint32_t)n, h) == 0) {
+            prov_note(h, kind, "shell", 0, 0);
+            char hex[SHA256_LEN * 2 + 1];
+            sha256_hex(h, hex);
+            kprint("%s: obj://%s\n", kind, hex);
+        } else {
+            kprint("%s: failed\n", kind);
+        }
+    } else if (eq(cmd, "instr")) {
+        uint8_t buf[1024];
+        int n = uri_read("sys://instr", buf, sizeof(buf) - 1);
+        if (n > 0) {
+            buf[n] = 0;
+            kprint("%s", buf);
+        }
+    } else if (cmd[0] == 'c' && cmd[1] == 'a' && cmd[2] == 'p' &&
+               cmd[3] == ' ') {
+        /* cap <hash> — grant rwx capability, prints cap id */
+        uint8_t h[SHA256_LEN];
+        if (sha256_from_hex(cmd + 4, h) != 0) {
+            kprint("usage: cap <hash>\n");
+            return;
+        }
+        int id = cap_grant(h, CAP_R | CAP_W | CAP_X);
+        if (id >= 0)
+            kprint("cap %u\n", id);
+        else
+            kprint("cap: table full\n");
+    } else if (cmd[0] == 'i' && cmd[1] == 'r' && cmd[2] == 'u' &&
+               cmd[3] == 'n' && cmd[4] == ' ') {
+        /* irun <capid> <instr> <in-hash> — gated instrument run */
+        const char *p = cmd + 5;
+        uint32_t capid = 0;
+        while (*p >= '0' && *p <= '9')
+            capid = capid * 10 + (uint32_t)(*p++ - '0');
+        if (*p++ != ' ') {
+            kprint("usage: irun <capid> <instr> <in-hash>\n");
+            return;
+        }
+        char name[24];
+        int ti = 0;
+        while (p[ti] && p[ti] != ' ' && ti < 23) { name[ti] = p[ti]; ti++; }
+        name[ti] = 0;
+        p += ti;
+        if (*p++ != ' ') {
+            kprint("usage: irun <capid> <instr> <in-hash>\n");
+            return;
+        }
+        uint8_t inh[SHA256_LEN], outh[SHA256_LEN];
+        if (sha256_from_hex(p, inh) != 0) {
+            kprint("irun: bad input hash\n");
+            return;
+        }
+        int rc = instr_run(capid, name, inh, outh);
+        if (rc == 0) {
+            char hex[SHA256_LEN * 2 + 1];
+            sha256_hex(outh, hex);
+            kprint("%s emitted obj://%s\n", name, hex);
+        } else if (rc == -2) {
+            kprint("irun: capability denied\n");
+        } else {
+            kprint("irun: failed (%d)\n", rc);
+        }
+    } else if (cmd[0] == 'e' && cmd[1] == 'x' && cmd[2] == 'p' &&
+               cmd[3] == ' ') {
+        /* exp new <plan> | exp add <exp> <obj> | exp close <exp> <v> */
+        const char *p = cmd + 4;
+        if (p[0] == 'n' && p[1] == 'e' && p[2] == 'w' && p[3] == ' ') {
+            uint8_t h[SHA256_LEN];
+            if (exp_new(p + 4, h) == 0) {
+                char hex[SHA256_LEN * 2 + 1];
+                sha256_hex(h, hex);
+                kprint("experiment: obj://%s\n", hex);
+            } else {
+                kprint("exp: failed\n");
+            }
+        } else if (p[0] == 'a' && p[1] == 'd' && p[2] == 'd' &&
+                   p[3] == ' ') {
+            p += 4;
+            uint8_t eh[SHA256_LEN], oh[SHA256_LEN];
+            if (sha256_from_hexn(p, eh) != 0 || p[64] != ' ' ||
+                sha256_from_hex(p + 65, oh) != 0) {
+                kprint("usage: exp add <exp> <obj>\n");
+                return;
+            }
+            uint8_t nh[SHA256_LEN];
+            if (exp_attach(eh, oh, "meas", nh) == 0) {
+                char hex[SHA256_LEN * 2 + 1];
+                sha256_hex(nh, hex);
+                kprint("experiment v2: obj://%s\n", hex);
+            } else {
+                kprint("exp add: failed\n");
+            }
+        } else if (p[0] == 'c' && p[1] == 'l' && p[2] == 'o' &&
+                   p[3] == 's' && p[4] == 'e' && p[5] == ' ') {
+            p += 6;
+            uint8_t eh[SHA256_LEN];
+            if (sha256_from_hexn(p, eh) != 0 || p[64] != ' ') {
+                kprint("usage: exp close <exp> <verdict>\n");
+                return;
+            }
+            uint8_t nh[SHA256_LEN];
+            if (exp_close(eh, p + 65, nh) == 0) {
+                char hex[SHA256_LEN * 2 + 1];
+                sha256_hex(nh, hex);
+                kprint("experiment closed: obj://%s\n", hex);
+            } else {
+                kprint("exp close: failed\n");
+            }
+        } else {
+            kprint("usage: exp new|add|close ...\n");
         }
     } else if (eq(cmd, "objects")) {
         uint8_t buf[2048];

@@ -22,6 +22,7 @@
 #include "hostlink.h"
 #include "objstore.h"
 #include "prov.h"
+#include "instr.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -110,6 +111,7 @@ void kernel_main(void)
     if (blk_store()) {
         if (obj_mount(blk_store()) == 0) {
             prov_rebuild();
+            instr_init();
             obj_selftest();
         } else {
             kprint("objstore: mount failed\n");

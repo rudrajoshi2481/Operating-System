@@ -16,8 +16,7 @@
 #include "objstore.h"
 #include "prov.h"
 
-#define OBJ_CHUNK  5
-#define OBJ_ARRAY  6
+
 
 static uint32_t dtype_size(const char *dt)
 {

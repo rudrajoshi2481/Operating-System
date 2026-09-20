@@ -1,5 +1,7 @@
 #include "uri.h"
 #include "array.h"
+#include "caps.h"
+#include "instr.h"
 #include "kprint.h"
 #include "lib.h"
 #include "objstore.h"
@@ -61,7 +63,19 @@ int uri_read(const char *uri, void *buf, uint32_t cap)
             return qidx_fmt_log(b, cap);
         if (scheme_is(name, "qidx"))
             return qidx_fmt_idx(b, cap);
+        if (scheme_is(name, "instr"))
+            return instr_fmt(b, cap);
+        if (scheme_is(name, "caps"))
+            return cap_fmt(b, cap);
         return -1;
+    }
+
+    /* instrument://<name> — instrument manifest object */
+    if (scheme_is(uri, "instrument://")) {
+        uint8_t h[SHA256_LEN];
+        if (instr_find(uri + 13, h) != 0)
+            return -1;
+        return obj_get(h, buf, cap);
     }
 
     if (scheme_is(uri, "prov://")) {

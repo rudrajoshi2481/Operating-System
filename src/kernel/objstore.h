@@ -5,11 +5,18 @@
 #include "virtio_blk.h"
 
 /* object types */
-#define OBJ_RAW    0
-#define OBJ_TEXT   1
-#define OBJ_JSON   2
-#define OBJ_GENOME 3
-#define OBJ_PROV   4
+#define OBJ_RAW        0
+#define OBJ_TEXT       1
+#define OBJ_JSON       2
+#define OBJ_GENOME     3
+#define OBJ_PROV       4
+#define OBJ_CHUNK      5
+#define OBJ_ARRAY      6
+#define OBJ_SAMPLE     9
+#define OBJ_PLATE      10
+#define OBJ_PROTOCOL   11
+#define OBJ_INSTRUMENT 12
+#define OBJ_EXPERIMENT 13
 
 #define OBJ_MAX_SIZE (64 * 1024)
 
