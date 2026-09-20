@@ -1,0 +1,15 @@
+# Scratch / learning area — not for version control
+learn/
+
+# Build artifacts
+*.o
+*.elf
+*.dtb
+
+# Disk images / ISOs
+*.iso
+*.img
+*.qcow2
+
+# macOS junk
+.DS_Store
