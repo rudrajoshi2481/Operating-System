@@ -77,7 +77,7 @@ static void con_irq(struct trap_frame *f)
 
 int con_init(uint64_t hhdm)
 {
-    if (vio_probe(hhdm, VIO_DEV_CONSOLE, &dev) != 0)
+    if (vio_probe(hhdm, VIO_DEV_CONSOLE, 0, &dev) != 0)
         return -1;
     if (vio_init(&dev) != 0)
         return -2;

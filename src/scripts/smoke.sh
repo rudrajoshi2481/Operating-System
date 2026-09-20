@@ -12,10 +12,11 @@ sleep 10
 kill "$PID" 2>/dev/null
 wait "$PID" 2>/dev/null
 
-if grep -q BIOOS_OK "$LOG" && grep -q "tick" "$LOG" \
+if grep -q BIOOS_OK "$LOG" && grep -q "interrupts armed" "$LOG" \
         && grep -q "hello from EL0" "$LOG" \
         && grep -q "virtio-blk:" "$LOG" \
-        && grep -q "virtio-console:" "$LOG"; then
+        && grep -q "virtio-console:" "$LOG" \
+        && grep -q "objstore: selftest ok" "$LOG"; then
     echo "smoke: PASS"
 else
     echo "smoke: FAIL"

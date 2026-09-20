@@ -14,5 +14,6 @@ void     ksleep(uint64_t nticks);
 void     thread_exit(void);
 void     sched_tick(void);
 void     sched_dump(void);
+int      sched_fmt(char *buf, uint32_t cap);
 uint64_t cur_pgd(void);
 uint64_t timer_ticks(void);

@@ -20,6 +20,7 @@
 #include "virtio_blk.h"
 #include "virtio_console.h"
 #include "hostlink.h"
+#include "objstore.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -66,17 +67,6 @@ static void heap_selftest(void)
     kprint("heap: selftest ok\n");
 }
 
-/* Busy loop with no yield() — interleaving proves timer preemption. */
-static void spinner(void *arg)
-{
-    const char *name = arg;
-    for (;;) {
-        kprint("%s", name);
-        for (volatile int i = 0; i < 80000000; i++)
-            ;
-    }
-}
-
 void kernel_main(void)
 {
     if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision))
@@ -112,13 +102,20 @@ void kernel_main(void)
     heap_selftest();
 
     if (blk_init(hhdm) == 0)
-        blk_selftest();
-    else
         kprint("virtio-blk: not found\n");
+    else if (blk_esp())
+        blk_selftest(blk_esp());
+
+    if (blk_store()) {
+        if (obj_mount(blk_store()) == 0)
+            obj_selftest();
+        else
+            kprint("objstore: mount failed\n");
+    } else {
+        kprint("objstore: no store disk\n");
+    }
 
     sched_init();
-    thread_create(spinner, "A");
-    thread_create(spinner, "B");
     proc_exec(_user_hello_start);
     thread_create(shell_main, 0);
     thread_create(hostlink_main, 0);

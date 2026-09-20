@@ -67,8 +67,10 @@ struct virtqueue {
     struct vdev              *dev;
 };
 
-/* Probe slots for devid; fills dev (incl. irq). 0 = found. */
-int  vio_probe(uint64_t hhdm, uint32_t devid, struct vdev *dev);
+/* Probe slots for the `instance`-th device of type devid (0 = first,
+ * scanning slots low to high). Fills dev (incl. irq). 0 = found. */
+int  vio_probe(uint64_t hhdm, uint32_t devid, int instance,
+               struct vdev *dev);
 
 /* Reset + ACK/DRIVER + feature negotiation (VERSION_1 when modern). */
 int  vio_init(struct vdev *dev);

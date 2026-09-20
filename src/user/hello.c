@@ -16,13 +16,9 @@ static size_t slen(const char *s)
 void _start(void)
 {
     sys_write(1, "hello from EL0\n", 15);
-    for (int i = 0; i < 4; i++) {
-        sys_write(1, "u", 1);
-        sys_yield();
-    }
-    sys_write(1, "\n", 1);
     sys_exit(0);
     for (;;)
         ;
     (void)slen;
+    (void)sys_yield;
 }

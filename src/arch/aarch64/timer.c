@@ -27,7 +27,6 @@ static void on_tick(struct trap_frame *frame)
     (void)frame;
     ticks++;
     timer_rearm();
-    kprint("tick %lu\n", ticks);
     sched_tick();
 }
 

@@ -175,18 +175,28 @@ uint64_t cur_pgd(void)
     return cur->pgd;
 }
 
-void sched_dump(void)
+int sched_fmt(char *buf, uint32_t cap)
 {
     static const char *names[] = {
         "unused", "runnable", "running", "sleeping", "zombie"
     };
+    uint32_t off = 0;
     irq_mask();
     for (int i = 0; i < NTHREADS; i++)
-        if (threads[i].state != T_UNUSED)
-            kprint("  thread %d: %s%s\n", threads[i].id,
-                   names[threads[i].state],
-                   threads[i].pgd ? " (user)" : "");
+        if (threads[i].state != T_UNUSED && off < cap)
+            off += (uint32_t)ksnprintf(buf + off, cap - off,
+                                       "  thread %d: %s%s\n", threads[i].id,
+                                       names[threads[i].state],
+                                       threads[i].pgd ? " (user)" : "");
     irq_unmask();
+    return (int)off;
+}
+
+void sched_dump(void)
+{
+    static char b[512];
+    sched_fmt(b, sizeof(b));
+    kprint("%s", b);
 }
 
 void yield(void)

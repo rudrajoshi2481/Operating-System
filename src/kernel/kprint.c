@@ -4,6 +4,27 @@
 #include "kprint.h"
 #include "uart.h"
 
+/* emit target: UART by default, a caller buffer while ksnprintf runs */
+static char    *sn_buf;
+static uint32_t sn_cap, sn_len;
+
+static void emit(char c)
+{
+    if (sn_buf) {
+        if (sn_len + 1 < sn_cap)
+            sn_buf[sn_len] = c;
+        sn_len++;
+    } else {
+        uart_putc(c);
+    }
+}
+
+static void emit_str(const char *s)
+{
+    while (*s)
+        emit(*s++);
+}
+
 static void put_u64(uint64_t v, unsigned base, int upper, int width, int pad0)
 {
     char buf[32];
@@ -17,16 +38,16 @@ static void put_u64(uint64_t v, unsigned base, int upper, int width, int pad0)
         v /= base;
     }
     while (width-- > i)
-        uart_putc(pad0 ? '0' : ' ');
+        emit(pad0 ? '0' : ' ');
     while (i--)
-        uart_putc(buf[i]);
+        emit(buf[i]);
 }
 
 static void put_i64(int64_t v, int width, int pad0)
 {
     uint64_t u = (uint64_t)v;
     if (v < 0) {
-        uart_putc('-');
+        emit('-');
         u = (uint64_t)(-(v + 1)) + 1;
     }
     put_u64(u, 10, 0, width, pad0);
@@ -36,7 +57,7 @@ void kvprint(const char *fmt, va_list ap)
 {
     for (const char *p = fmt; *p; p++) {
         if (*p != '%') {
-            uart_putc(*p);
+            emit(*p);
             continue;
         }
         p++;
@@ -54,14 +75,14 @@ void kvprint(const char *fmt, va_list ap)
         }
         switch (*p) {
         case '%':
-            uart_putc('%');
+            emit('%');
             break;
         case 'c':
-            uart_putc((char)va_arg(ap, int));
+            emit((char)va_arg(ap, int));
             break;
         case 's': {
             const char *s = va_arg(ap, const char *);
-            uart_write(s ? s : "(null)");
+            emit_str(s ? s : "(null)");
             break;
         }
         case 'd':
@@ -81,12 +102,12 @@ void kvprint(const char *fmt, va_list ap)
                     16, 1, width, pad0);
             break;
         case 'p':
-            uart_write("0x");
+            emit_str("0x");
             put_u64((uint64_t)va_arg(ap, void *), 16, 0, 0, 0);
             break;
         default:
-            uart_putc('%');
-            uart_putc(*p);
+            emit('%');
+            emit(*p);
             break;
         }
     }
@@ -98,4 +119,19 @@ void kprint(const char *fmt, ...)
     va_start(ap, fmt);
     kvprint(fmt, ap);
     va_end(ap);
+}
+
+int ksnprintf(char *buf, uint32_t cap, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    sn_buf = buf;
+    sn_cap = cap;
+    sn_len = 0;
+    kvprint(fmt, ap);
+    if (buf && cap)
+        buf[sn_len < cap ? sn_len : cap - 1] = 0;
+    sn_buf = 0;
+    va_end(ap);
+    return (int)sn_len;                 /* would-be length, snprintf-style */
 }

@@ -45,7 +45,8 @@ static inline void wr(struct vdev *d, uint32_t off, uint32_t v)
     *(volatile uint32_t *)(d->base + off) = v;
 }
 
-int vio_probe(uint64_t hhdm, uint32_t devid, struct vdev *dev)
+int vio_probe(uint64_t hhdm, uint32_t devid, int instance,
+              struct vdev *dev)
 {
     for (int i = 0; i < VIO_MMIO_SLOTS; i++) {
         volatile uint8_t *r = (volatile uint8_t *)(hhdm + VIO_MMIO_BASE +
@@ -54,6 +55,8 @@ int vio_probe(uint64_t hhdm, uint32_t devid, struct vdev *dev)
             *(volatile uint32_t *)(r + R_DEVID) == devid) {
             uint32_t ver = *(volatile uint32_t *)(r + R_VERSION);
             if (ver != 1 && ver != 2)
+                continue;
+            if (instance--)
                 continue;
             dev->base   = r;
             dev->legacy = ver == 1;

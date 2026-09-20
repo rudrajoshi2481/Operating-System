@@ -7,6 +7,7 @@ LIMINE  := ../limine
 BUILD   := build
 KERNEL  := $(BUILD)/kernel.elf
 IMG     := $(BUILD)/bioos.img
+STORE   := $(BUILD)/store.img
 
 CFLAGS  := --target=aarch64-none-elf -ffreestanding -nostdlib \
            -Wall -Wextra -Werror -mgeneral-regs-only \
@@ -18,6 +19,7 @@ LDFLAGS := -nostdlib -static -z max-page-size=4096 -T linker.ld
 C_SRCS   := kernel/main.c kernel/kprint.c kernel/panic.c kernel/exception.c \
             kernel/lib.c kernel/pmm.c kernel/heap.c kernel/thread.c \
             kernel/proc.c kernel/syscall.c kernel/shell.c \
+            kernel/sha256.c kernel/objstore.c kernel/uri.c \
             drivers/virtio_mmio.c drivers/virtio_blk.c \
             drivers/virtio_console.c kernel/hostlink.c \
             arch/aarch64/uart.c arch/aarch64/mmio.c arch/aarch64/gic.c \
@@ -32,6 +34,8 @@ QFLAGS  := -M virt,gic-version=3 -accel hvf -cpu host -m 256M \
            -bios $(EDK2) \
            -drive if=none,id=esp,format=raw,file=$(IMG) \
            -device virtio-blk-device,drive=esp \
+           -drive if=none,id=store,format=raw,file=$(STORE) \
+           -device virtio-blk-device,drive=store \
            -device virtio-serial-device \
            -chardev socket,id=hchan,path=$(BUILD)/host.sock,server=on,wait=off \
            -device virtconsole,chardev=hchan
@@ -65,13 +69,16 @@ $(KERNEL): $(OBJS) linker.ld
 $(IMG): $(KERNEL) limine.conf
 	sh scripts/mkimg.sh $(IMG) $(KERNEL) $(LIMINE)
 
-run: $(IMG)
+$(STORE):
+	dd if=/dev/zero of=$@ bs=1m count=64
+
+run: $(IMG) $(STORE)
 	$(QEMU) $(QFLAGS) -display none -serial stdio
 
-run-ui: $(IMG)
+run-ui: $(IMG) $(STORE)
 	$(QEMU) $(QFLAGS) -device virtio-gpu-device -display cocoa -serial stdio
 
-test: $(IMG)
+test: $(IMG) $(STORE)
 	@QEMU="$(QEMU)" QFLAGS="$(QFLAGS)" sh scripts/smoke.sh
 
 clean:
@@ -87,7 +94,9 @@ HOSTSRC  := kernel/pmm.c kernel/heap.c kernel/lib.c
 check:
 	$(HOSTCC) $(HOSTFLAGS) test/pmm_test.c  kernel/pmm.c kernel/lib.c test/stub.c -o $(BUILD)/pmm_test
 	$(HOSTCC) $(HOSTFLAGS) test/heap_test.c $(HOSTSRC) test/stub.c -o $(BUILD)/heap_test
+	$(HOSTCC) $(HOSTFLAGS) test/sha_test.c  kernel/sha256.c -o $(BUILD)/sha_test
 	./$(BUILD)/pmm_test
 	./$(BUILD)/heap_test
+	./$(BUILD)/sha_test
 
 .PHONY: all run run-ui test check clean
