@@ -23,6 +23,8 @@
 #include "objstore.h"
 #include "prov.h"
 #include "instr.h"
+#include "fb.h"
+#include "ui.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -102,6 +104,7 @@ void kernel_main(void)
            pmm_free_frames(), pmm_free_frames() * 4096 / (1024 * 1024));
 
     heap_selftest();
+    fb_init(hhdm);
 
     if (blk_init(hhdm) == 0)
         kprint("virtio-blk: not found\n");

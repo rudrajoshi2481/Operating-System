@@ -22,6 +22,7 @@ C_SRCS   := kernel/main.c kernel/kprint.c kernel/panic.c kernel/exception.c \
             kernel/sha256.c kernel/objstore.c kernel/uri.c kernel/prov.c \
             kernel/array.c kernel/codec.c kernel/qidx.c \
             kernel/caps.c kernel/instr.c kernel/exp.c kernel/gate.c \
+            kernel/fb.c kernel/ui.c \
             drivers/virtio_mmio.c drivers/virtio_blk.c \
             drivers/virtio_console.c kernel/hostlink.c \
             arch/aarch64/uart.c arch/aarch64/mmio.c arch/aarch64/gic.c \

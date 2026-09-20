@@ -16,6 +16,7 @@
 #include "exp.h"
 #include "gate.h"
 #include "instr.h"
+#include "ui.h"
 
 extern char _user_hello_start[];
 
@@ -31,7 +32,7 @@ static void run_cmd(char *cmd)
     if (eq(cmd, "help")) {
         kprint("commands: help ps free run blk host put get uri objects\n");
         kprint("          derive lineage mkarr arrget\n");
-        kprint("          mksample mkproto instr cap irun exp\n");
+        kprint("          mksample mkproto instr cap irun exp ui\n");
     } else if (cmd[0] == 'h' && cmd[1] == 'o' && cmd[2] == 's' &&
                cmd[3] == 't' && cmd[4] == ' ') {
         const char *msg = cmd + 5;
@@ -341,6 +342,13 @@ static void run_cmd(char *cmd)
         while (*p >= '0' && *p <= '9')
             id = id * 10 + (uint32_t)(*p++ - '0');
         gate_approve(id);
+    } else if (cmd[0] == 'u' && cmd[1] == 'i') {
+        /* ui [n] — render screen n (0 shell,1 objects,2 lineage,3 heat) */
+        int n = ui_screen();
+        if (cmd[2] == ' ' && cmd[3] >= '0' && cmd[3] <= '3')
+            n = cmd[3] - '0';
+        ui_render(n);
+        kprint("ui: screen %d\n", n);
     } else if (eq(cmd, "objects")) {
         uint8_t buf[2048];
         int n = uri_read("sys://objects", buf, sizeof(buf) - 1);
