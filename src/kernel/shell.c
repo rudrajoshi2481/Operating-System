@@ -8,6 +8,7 @@
 #include "virtio_blk.h"
 #include "virtio_console.h"
 #include "objstore.h"
+#include "prov.h"
 #include "uri.h"
 #include "sha256.h"
 
@@ -60,6 +61,7 @@ static void run_cmd(char *cmd)
             len++;
         uint8_t h[SHA256_LEN];
         if (obj_put(OBJ_TEXT, msg, len, h) == 0) {
+            prov_note(h, "put", "shell", 0, 0);
             char hex[SHA256_LEN * 2 + 1];
             sha256_hex(h, hex);
             kprint("stored: obj://%s\n", hex);
@@ -93,6 +95,61 @@ static void run_cmd(char *cmd)
         } else {
             kprint("uri: not found\n");
         }
+    } else if (cmd[0] == 'd' && cmd[1] == 'e' && cmd[2] == 'r' &&
+               cmd[3] == 'i' && cmd[4] == 'v' && cmd[5] == 'e' &&
+               cmd[6] == ' ') {
+        /* derive <op> <in-hex> <text> — create object with lineage */
+        char *rest = cmd + 7;
+        char *sp = 0;
+        for (char *p = rest; *p; p++)
+            if (*p == ' ') { sp = p; break; }
+        uint8_t inh[SHA256_LEN];
+        char hexbuf[SHA256_LEN * 2 + 1];
+        int ok = 0;
+        if (sp && sp[65] == ' ') {
+            memcpy(hexbuf, sp + 1, SHA256_LEN * 2);
+            hexbuf[SHA256_LEN * 2] = 0;
+            ok = sha256_from_hex(hexbuf, inh) == 0;
+        }
+        if (ok) {
+            char op[16];
+            uint32_t olen = (uint32_t)(sp - rest);
+            if (olen >= sizeof(op))
+                olen = sizeof(op) - 1;
+            memcpy(op, rest, olen);
+            op[olen] = 0;
+            const char *msg = sp + 66;
+            uint32_t mlen = 0;
+            while (msg[mlen])
+                mlen++;
+            uint8_t h[SHA256_LEN];
+            uint8_t ins[1][SHA256_LEN];
+            memcpy(ins[0], inh, SHA256_LEN);
+            if (obj_put(OBJ_TEXT, msg, mlen, h) == 0) {
+                prov_note(h, op, "shell", ins, 1);
+                char hex[SHA256_LEN * 2 + 1];
+                sha256_hex(h, hex);
+                kprint("derived: obj://%s\n", hex);
+            } else {
+                kprint("derive: store failed\n");
+            }
+        } else {
+            kprint("usage: derive <op> <in-hex> <text>\n");
+        }
+    } else if (cmd[0] == 'l' && cmd[1] == 'i' && cmd[2] == 'n' &&
+               cmd[3] == 'e' && cmd[4] == 'a' && cmd[5] == 'g' &&
+               cmd[6] == 'e' && cmd[7] == ' ') {
+        uint8_t h[SHA256_LEN];
+        if (sha256_from_hex(cmd + 8, h) == 0) {
+            static char buf[2048];
+            int n = prov_lineage(h, buf, sizeof(buf) - 1);
+            if (n > 0)
+                kprint("%s", buf);
+            else
+                kprint("no lineage\n");
+        } else {
+            kprint("usage: lineage <hash>\n");
+        }
     } else if (eq(cmd, "objects")) {
         uint8_t buf[2048];
         int n = uri_read("sys://objects", buf, sizeof(buf) - 1);
@@ -108,7 +165,7 @@ static void run_cmd(char *cmd)
 void shell_main(void *arg)
 {
     (void)arg;
-    char line[64];
+    char line[192];
     int n = 0;
 
     kprint("\nbioos> ");

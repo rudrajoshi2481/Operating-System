@@ -21,6 +21,7 @@
 #include "virtio_console.h"
 #include "hostlink.h"
 #include "objstore.h"
+#include "prov.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -107,10 +108,12 @@ void kernel_main(void)
         blk_selftest(blk_esp());
 
     if (blk_store()) {
-        if (obj_mount(blk_store()) == 0)
+        if (obj_mount(blk_store()) == 0) {
+            prov_rebuild();
             obj_selftest();
-        else
+        } else {
             kprint("objstore: mount failed\n");
+        }
     } else {
         kprint("objstore: no store disk\n");
     }
@@ -121,6 +124,7 @@ void kernel_main(void)
     thread_create(hostlink_main, 0);
 
     gic_init(hhdm);
+    uart_irq_init();
     if (con_init(hhdm) != 0)
         kprint("virtio-console: not found\n");
     timer_init();

@@ -9,6 +9,7 @@
 #define OBJ_TEXT   1
 #define OBJ_JSON   2
 #define OBJ_GENOME 3
+#define OBJ_PROV   4
 
 #define OBJ_MAX_SIZE (64 * 1024)
 

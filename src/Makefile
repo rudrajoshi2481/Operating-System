@@ -19,7 +19,7 @@ LDFLAGS := -nostdlib -static -z max-page-size=4096 -T linker.ld
 C_SRCS   := kernel/main.c kernel/kprint.c kernel/panic.c kernel/exception.c \
             kernel/lib.c kernel/pmm.c kernel/heap.c kernel/thread.c \
             kernel/proc.c kernel/syscall.c kernel/shell.c \
-            kernel/sha256.c kernel/objstore.c kernel/uri.c \
+            kernel/sha256.c kernel/objstore.c kernel/uri.c kernel/prov.c \
             drivers/virtio_mmio.c drivers/virtio_blk.c \
             drivers/virtio_console.c kernel/hostlink.c \
             arch/aarch64/uart.c arch/aarch64/mmio.c arch/aarch64/gic.c \

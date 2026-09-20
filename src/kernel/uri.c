@@ -3,6 +3,7 @@
 #include "lib.h"
 #include "objstore.h"
 #include "pmm.h"
+#include "prov.h"
 #include "sha256.h"
 #include "thread.h"
 #include "timer.h"
@@ -52,7 +53,16 @@ int uri_read(const char *uri, void *buf, uint32_t cap)
             return sys_objects(b, cap);
         if (scheme_is(name, "uptime"))
             return ksnprintf(b, cap, "ticks %lu\n", timer_ticks());
+        if (scheme_is(name, "prov"))
+            return ksnprintf(b, cap, "lineage_records %u\n", prov_count());
         return -1;
+    }
+
+    if (scheme_is(uri, "prov://")) {
+        uint8_t h[SHA256_LEN];
+        if (sha256_from_hex(uri + 7, h) != 0)
+            return -1;
+        return prov_lineage(h, b, cap);
     }
 
     if (scheme_is(uri, "obj://")) {

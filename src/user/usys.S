@@ -18,3 +18,9 @@ sys_yield:
     mov x8, #2
     svc #0
     ret
+
+.global sys_uri
+sys_uri:
+    mov x8, #3
+    svc #0
+    ret
