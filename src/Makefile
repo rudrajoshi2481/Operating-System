@@ -11,13 +11,14 @@ IMG     := $(BUILD)/bioos.img
 CFLAGS  := --target=aarch64-none-elf -ffreestanding -nostdlib \
            -Wall -Wextra -Werror -mgeneral-regs-only \
            -fno-stack-protector -fno-stack-check -fno-PIC \
-           -O2 -g -I. -Ikernel -Iarch/aarch64
+           -O2 -g -I. -Ikernel -Iarch/aarch64 -Idrivers
 
 LDFLAGS := -nostdlib -static -z max-page-size=4096 -T linker.ld
 
 C_SRCS   := kernel/main.c kernel/kprint.c kernel/panic.c kernel/exception.c \
             kernel/lib.c kernel/pmm.c kernel/heap.c kernel/thread.c \
             kernel/proc.c kernel/syscall.c kernel/shell.c \
+            drivers/virtio_blk.c \
             arch/aarch64/uart.c arch/aarch64/mmio.c arch/aarch64/gic.c \
             arch/aarch64/irq.c arch/aarch64/timer.c arch/aarch64/vmm.c
 ASM_SRCS := arch/aarch64/boot.S arch/aarch64/vectors.S arch/aarch64/switch.S \

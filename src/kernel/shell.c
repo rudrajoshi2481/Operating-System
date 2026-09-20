@@ -5,6 +5,7 @@
 #include "proc.h"
 #include "thread.h"
 #include "uart.h"
+#include "virtio_blk.h"
 
 extern char _user_hello_start[];
 
@@ -18,7 +19,19 @@ static int eq(const char *a, const char *b)
 static void run_cmd(char *cmd)
 {
     if (eq(cmd, "help")) {
-        kprint("commands: help ps free run\n");
+        kprint("commands: help ps free run blk\n");
+    } else if (eq(cmd, "blk")) {
+        uint8_t sec[512];
+        if (blk_read(0, sec, 512) == 0) {
+            kprint("capacity: %lu sectors\n", blk_capacity());
+            for (int i = 0; i < 64; i++) {
+                kprint("%x ", sec[i]);
+                if (i % 16 == 15)
+                    kprint("\n");
+            }
+        } else {
+            kprint("blk: read failed\n");
+        }
     } else if (eq(cmd, "ps")) {
         sched_dump();
     } else if (eq(cmd, "free")) {
