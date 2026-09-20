@@ -22,3 +22,6 @@ void sha256(const void *data, size_t len, uint8_t out[SHA256_LEN]);
 /* lowercase hex, no separators; hex must hold 2*SHA256_LEN+1 */
 void sha256_hex(const uint8_t h[SHA256_LEN], char *hex);
 int  sha256_from_hex(const char *hex, uint8_t h[SHA256_LEN]); /* 0=ok */
+/* like sha256_from_hex but parses exactly 64 chars with no NUL
+ * requirement — for hashes embedded in longer strings/URIs */
+int  sha256_from_hexn(const char *hex, uint8_t h[SHA256_LEN]);

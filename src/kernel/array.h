@@ -34,6 +34,11 @@ int  arr_put(uint32_t kind, const char *dtype, const char *codec,
  * Returns element count or <0. */
 int  arr_read(const uint8_t hash[SHA256_LEN], void *buf, uint64_t maxlen);
 
+/* Bounded range read: elements [lo,hi) of a 1-D array; only loads the
+ * chunks the range overlaps. Returns elements copied or <0. */
+int  arr_range(const uint8_t hash[SHA256_LEN], uint64_t lo, uint64_t hi,
+               void *buf, uint64_t maxlen);
+
 /* Parse manifest fields without loading chunks. */
 int  arr_info(const uint8_t hash[SHA256_LEN], uint32_t *kind,
               char *dtype, char *codec, uint32_t *ndim,

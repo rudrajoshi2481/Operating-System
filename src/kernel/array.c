@@ -431,3 +431,85 @@ int arr_read(const uint8_t hash[SHA256_LEN], void *buf, uint64_t maxlen)
     kfree(ubuf);
     return (int)elems;
 }
+
+/* ---- bounded range read (1-D) ------------------------------------------ */
+
+int arr_range(const uint8_t hash[SHA256_LEN], uint64_t lo, uint64_t hi,
+              void *buf, uint64_t maxlen)
+{
+    uint32_t kind, ndim;
+    char dtype[8], codec[8];
+    uint64_t shape[ARR_MAX_DIM], cs[ARR_MAX_DIM];
+    if (arr_info(hash, &kind, dtype, codec, &ndim, shape, cs) != 0)
+        return -1;
+    (void)kind;
+    if (ndim != 1 || lo >= hi || hi > shape[0])
+        return -2;
+
+    uint32_t esz = dtype_size(dtype);
+    int dna2 = codec[0] == 'd';
+    if ((hi - lo) * esz > maxlen)
+        return -3;
+
+    uint8_t man[4096];
+    int mn = obj_get(hash, man, sizeof(man) - 1);
+    if (mn <= 0)
+        return -1;
+    man[mn] = 0;
+    const char *p = nth_line((const char *)man, 8);
+    if (!p)
+        return -4;
+
+    uint64_t nchunks = (shape[0] + cs[0] - 1) / cs[0];
+    uint64_t c0 = lo / cs[0], c1 = (hi - 1) / cs[0];
+
+    uint8_t *cbuf = kmalloc(cs[0] * esz + 4);
+    uint8_t *ubuf = kmalloc((uint32_t)cs[0] + 4);
+    if (!cbuf || !ubuf) {
+        kfree(cbuf); kfree(ubuf);
+        return -5;
+    }
+
+    uint64_t out = 0;
+    for (uint64_t ci = 0; ci < nchunks && p; ci++, p = nth_line(p, 1)) {
+        if (ci < c0)
+            continue;                   /* skip chunk hashes before range */
+        if (ci > c1)
+            break;                      /* past the range: stop loading */
+        if (p[0] != 'c' || p[1] != 'h' || p[2] != ' ')
+            break;
+        char hex[SHA256_LEN * 2 + 1];
+        memcpy(hex, p + 3, SHA256_LEN * 2);
+        hex[SHA256_LEN * 2] = 0;
+        uint8_t ch[SHA256_LEN];
+        if (sha256_from_hex(hex, ch) != 0)
+            break;
+
+        uint64_t clo = ci * cs[0];
+        uint64_t chi = clo + cs[0];
+        if (chi > shape[0])
+            chi = shape[0];
+        uint64_t ce = chi - clo;
+
+        int cn = obj_get(ch, cbuf, (uint32_t)(dna2 ? (ce + 3) / 4
+                                                  : ce * esz));
+        if (cn <= 0) {
+            kfree(cbuf); kfree(ubuf);
+            return -6;
+        }
+        const uint8_t *src = cbuf;
+        if (dna2) {
+            dna2_unpack(cbuf, (uint32_t)ce, ubuf);
+            src = ubuf;
+        }
+        /* intersect [clo,chi) with [lo,hi) */
+        uint64_t s = lo > clo ? lo - clo : 0;
+        uint64_t e = hi < chi ? hi - clo : ce;
+        memcpy((uint8_t *)buf + out * esz, src + s * esz,
+               (e - s) * esz);
+        out += e - s;
+    }
+    kfree(cbuf);
+    kfree(ubuf);
+    return (int)out;
+}

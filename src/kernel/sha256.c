@@ -132,7 +132,7 @@ static int nib(char c)
     return -1;
 }
 
-int sha256_from_hex(const char *hex, uint8_t h[SHA256_LEN])
+int sha256_from_hexn(const char *hex, uint8_t h[SHA256_LEN])
 {
     for (int i = 0; i < SHA256_LEN; i++) {
         int hi = nib(hex[i * 2]), lo = nib(hex[i * 2 + 1]);
@@ -140,5 +140,12 @@ int sha256_from_hex(const char *hex, uint8_t h[SHA256_LEN])
             return -1;
         h[i] = (uint8_t)(hi * 16 + lo);
     }
+    return 0;
+}
+
+int sha256_from_hex(const char *hex, uint8_t h[SHA256_LEN])
+{
+    if (sha256_from_hexn(hex, h) != 0)
+        return -1;
     return hex[SHA256_LEN * 2] == 0 ? 0 : -1;
 }

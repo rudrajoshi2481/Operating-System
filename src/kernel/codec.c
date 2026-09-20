@@ -14,13 +14,6 @@
 #include "objstore.h"
 #include "prov.h"
 
-struct varrec {
-    uint32_t chrom;                     /* 0..23 chr1-22,X,Y ; 255 other */
-    uint64_t pos;
-    uint8_t  ref, alt;                  /* 0-3 packed base */
-    uint16_t flags;
-};                                      /* 16 bytes */
-
 #define MAX_VARS (64 * 1024 / sizeof(struct varrec))   /* cap 4 KiB chunk */
 
 static uint32_t chrom_id(const char *s, uint32_t len)
