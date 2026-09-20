@@ -9,6 +9,8 @@
 #include "mmio.h"
 #include "panic.h"
 #include "pmm.h"
+#include "proc.h"
+#include "shell.h"
 #include "uart.h"
 #include "vmm.h"
 #include "gic.h"
@@ -44,6 +46,7 @@ __attribute__((used, section(".limine_requests_end")))
 static volatile uint64_t limine_requests_end[] = LIMINE_REQUESTS_END_MARKER;
 
 extern char _kernel_end[];
+extern char _user_hello_start[];
 
 static void heap_selftest(void)
 {
@@ -60,7 +63,7 @@ static void heap_selftest(void)
     kprint("heap: selftest ok\n");
 }
 
-/* Busy loops with no yield() — interleaving proves timer preemption. */
+/* Busy loop with no yield() — interleaving proves timer preemption. */
 static void spinner(void *arg)
 {
     const char *name = arg;
@@ -68,15 +71,6 @@ static void spinner(void *arg)
         kprint("%s", name);
         for (volatile int i = 0; i < 80000000; i++)
             ;
-    }
-}
-
-static void sleeper(void *arg)
-{
-    (void)arg;
-    for (;;) {
-        ksleep(3);
-        kprint("[slept 3 ticks]\n");
     }
 }
 
@@ -117,7 +111,8 @@ void kernel_main(void)
     sched_init();
     thread_create(spinner, "A");
     thread_create(spinner, "B");
-    thread_create(sleeper, 0);
+    proc_exec(_user_hello_start);
+    thread_create(shell_main, 0);
 
     gic_init(hhdm);
     timer_init();

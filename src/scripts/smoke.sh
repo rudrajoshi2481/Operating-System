@@ -8,11 +8,12 @@ rm -f "$LOG"
 
 $QEMU $QFLAGS -display none -serial file:"$LOG" &
 PID=$!
-sleep 8
+sleep 10
 kill "$PID" 2>/dev/null
 wait "$PID" 2>/dev/null
 
-if grep -q BIOOS_OK "$LOG" && grep -q "tick" "$LOG"; then
+if grep -q BIOOS_OK "$LOG" && grep -q "tick" "$LOG" \
+        && grep -q "hello from EL0" "$LOG"; then
     echo "smoke: PASS"
 else
     echo "smoke: FAIL"

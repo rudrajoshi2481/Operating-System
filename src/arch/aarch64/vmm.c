@@ -17,7 +17,7 @@
 #define ATTR_NORMAL 1ULL
 
 #define MAIR_VALUE  0x000000000044ff00ULL   /* 0: dev nGnRnE, 1: normal WB, 2: NC */
-#define TCR_VALUE   0x00000005b5103590ULL   /* 4K granule, 48-bit, TTBR0 walks off */
+#define TCR_VALUE   0x00000005b5103510ULL   /* 4K granule, 48-bit, EPD0=0: TTBR0 walks on */
 
 #define TABLE_MASK  0x0000fffffffff000ULL
 
@@ -39,18 +39,27 @@ static uint64_t leaf_desc(uint64_t pa, unsigned flags, int page_level)
     d |= page_level ? PTE_PAGE : PTE_BLOCK;
     if (flags & VMM_DEVICE) {
         d |= ATTR_DEVICE << 2;
+        d |= PTE_UXN | PTE_PXN;
     } else {
         d |= (ATTR_NORMAL << 2) | PTE_SH_INNER;
+        if (flags & VMM_USER) {
+            /* AP[7:6]: 01 = RW at EL0+EL1, 11 = RO at EL0+EL1 */
+            d |= (flags & VMM_WRITE) ? (1ULL << 6) : (3ULL << 6);
+            if (!(flags & VMM_EXEC))
+                d |= PTE_UXN;
+            d |= PTE_PXN;          /* kernel never executes user pages */
+        } else {
+            if (!(flags & VMM_WRITE))
+                d |= PTE_AP_RO;
+            if (!(flags & VMM_EXEC))
+                d |= PTE_PXN;
+            d |= PTE_UXN;          /* EL0 never touches kernel pages */
+        }
     }
-    if (!(flags & VMM_WRITE))
-        d |= PTE_AP_RO;
-    if (!(flags & VMM_EXEC))
-        d |= PTE_PXN;
-    d |= PTE_UXN;
     return d;
 }
 
-static void map_page(uint64_t *l0, uint64_t va, uint64_t pa, unsigned flags)
+static int map_page(uint64_t *l0, uint64_t va, uint64_t pa, unsigned flags)
 {
     uint64_t *tab = l0;
     for (int level = 0; level < 3; level++) {
@@ -59,7 +68,7 @@ static void map_page(uint64_t *l0, uint64_t va, uint64_t pa, unsigned flags)
         if ((e & 3) != 3) {
             uint64_t *nt = new_table();
             if (!nt)
-                return;
+                return -1;
             tab[(va >> shift) & 0x1ff] =
                 (((uint64_t)(uintptr_t)nt - hhdm) & TABLE_MASK) | PTE_VALID | PTE_TABLE;
             e = tab[(va >> shift) & 0x1ff];
@@ -67,10 +76,11 @@ static void map_page(uint64_t *l0, uint64_t va, uint64_t pa, unsigned flags)
         tab = (uint64_t *)((e & TABLE_MASK) + hhdm);
     }
     tab[(va >> 12) & 0x1ff] = leaf_desc(pa, flags, 1);
+    return 0;
 }
 
-static void map_range(uint64_t *l0, uint64_t va, uint64_t pa, uint64_t len,
-                      unsigned flags)
+static int map_range(uint64_t *l0, uint64_t va, uint64_t pa, uint64_t len,
+                     unsigned flags)
 {
     while (len) {
         uint64_t size = 4096;
@@ -80,7 +90,8 @@ static void map_range(uint64_t *l0, uint64_t va, uint64_t pa, uint64_t len,
             size = 2ULL << 20;
 
         if (size == 4096) {
-            map_page(l0, va, pa, flags);
+            if (map_page(l0, va, pa, flags) != 0)
+                return -1;
         } else {
             int level = (size == (1ULL << 30)) ? 1 : 2;
             unsigned shift = level == 1 ? 30 : 21;
@@ -91,7 +102,7 @@ static void map_range(uint64_t *l0, uint64_t va, uint64_t pa, uint64_t len,
                 if ((e & 3) != 3) {
                     uint64_t *nt = new_table();
                     if (!nt)
-                        return;
+                        return -1;
                     tab[(va >> s) & 0x1ff] =
                         (((uint64_t)(uintptr_t)nt - hhdm) & TABLE_MASK) |
                         PTE_VALID | PTE_TABLE;
@@ -105,6 +116,7 @@ static void map_range(uint64_t *l0, uint64_t va, uint64_t pa, uint64_t len,
         pa += size;
         len -= size;
     }
+    return 0;
 }
 
 void vmm_init(uint64_t hhdm_offset, uint64_t kphys, uint64_t kvirt,
@@ -148,4 +160,35 @@ void vmm_init(uint64_t hhdm_offset, uint64_t kphys, uint64_t kvirt,
         "isb\n"
         :: "r"(MAIR_VALUE), "r"(TCR_VALUE), "r"(empty_phys), "r"(l0_phys)
         : "memory");
+}
+
+uint64_t vmm_new_pgd(void)
+{
+    uint64_t *t = new_table();
+    return t ? (uint64_t)(uintptr_t)t - hhdm : 0;
+}
+
+int vmm_map_pages(uint64_t pgd, uint64_t va, uint64_t pa, uint64_t len,
+                  unsigned flags)
+{
+    return map_range((uint64_t *)(uintptr_t)(pgd + hhdm), va, pa, len, flags);
+}
+
+uint64_t vmm_translate(uint64_t pgd, uint64_t va)
+{
+    uint64_t *t = (uint64_t *)(uintptr_t)(pgd + hhdm);
+    for (int level = 0; level < 4; level++) {
+        unsigned shift = 39 - level * 9;
+        uint64_t e = t[(va >> shift) & 0x1ff];
+        if (!(e & 1))
+            return ~0ULL;
+        if ((e & 3) == 3 && level < 3) {         /* table pointer */
+            t = (uint64_t *)((e & TABLE_MASK) + hhdm);
+            continue;
+        }
+        /* block or page leaf */
+        uint64_t pgsz = 1ULL << (12 + (3 - level) * 9);
+        return (e & TABLE_MASK) | (va & (pgsz - 1));
+    }
+    return ~0ULL;
 }

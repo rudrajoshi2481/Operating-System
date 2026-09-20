@@ -65,7 +65,7 @@ exception_vectors:
     .p2align 7
     b serr_entry            // 0x380 SError, same EL using SPx
     .p2align 7
-    b lower_entry           // 0x400 sync,   lower EL aarch64
+    b sync_lower_entry      // 0x400 sync,   lower EL aarch64 (svc)
     .p2align 7
     b irq_entry             // 0x480 IRQ,    lower EL aarch64
     .p2align 7
@@ -92,8 +92,16 @@ irq_entry:
     SAVE_FRAME
     mov  x0, sp
     bl   irq_dispatch
+.global ret_to_el0
+ret_to_el0:
     RESTORE_FRAME
     eret
+
+sync_lower_entry:
+    SAVE_FRAME
+    mov  x0, sp
+    bl   sync_lower
+    b    ret_to_el0
 
 fiq_entry:
     SAVE_FRAME

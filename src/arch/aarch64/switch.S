@@ -37,3 +37,31 @@ thread_trampoline:
     bl   thread_exit            // never returns
 1:  wfe
     b    1b
+
+// First entry for a user thread. Arrives with sched_lock held and IRQs
+// masked; user_thread_enter() drops the lock and calls enter_el0().
+.global user_trampoline
+user_trampoline:
+    bl   user_thread_enter      // never returns
+
+// enter_el0(uentry=x0, usp=x1, pgd_phys=x2, kstack_top=x3)
+// Installs the process address space, builds a zeroed trap frame at the
+// top of the kernel stack, and erets into EL0.
+.global enter_el0
+enter_el0:
+    msr  ttbr0_el1, x2
+    msr  sp_el0, x1
+    dsb  ishst
+    tlbi vmalle1
+    dsb  sy
+    isb
+    mov  sp, x3
+    sub  sp, sp, #272
+    mov  x9, sp
+    mov  x10, #17                 /* 17 * 16 = 272 bytes */
+1:  stp  xzr, xzr, [x9], #16
+    subs x10, x10, #1
+    b.ne 1b
+    str  x0, [sp, #248]           /* elr = user entry point */
+    str  xzr, [sp, #256]          /* spsr = EL0t, DAIF clear (IRQs on) */
+    b    ret_to_el0

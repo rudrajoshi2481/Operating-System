@@ -17,9 +17,13 @@ LDFLAGS := -nostdlib -static -z max-page-size=4096 -T linker.ld
 
 C_SRCS   := kernel/main.c kernel/kprint.c kernel/panic.c kernel/exception.c \
             kernel/lib.c kernel/pmm.c kernel/heap.c kernel/thread.c \
+            kernel/proc.c kernel/syscall.c kernel/shell.c \
             arch/aarch64/uart.c arch/aarch64/mmio.c arch/aarch64/gic.c \
             arch/aarch64/irq.c arch/aarch64/timer.c arch/aarch64/vmm.c
-ASM_SRCS := arch/aarch64/boot.S arch/aarch64/vectors.S arch/aarch64/switch.S
+ASM_SRCS := arch/aarch64/boot.S arch/aarch64/vectors.S arch/aarch64/switch.S \
+            kernel/userblob.S
+
+USER_OBJS := $(BUILD)/user/hello.o $(BUILD)/user/usys.o
 OBJS     := $(C_SRCS:%.c=$(BUILD)/%.o) $(ASM_SRCS:%.S=$(BUILD)/%.o)
 
 QFLAGS  := -M virt,gic-version=3 -accel hvf -cpu host -m 256M \
@@ -36,6 +40,19 @@ $(BUILD)/%.o: %.c
 $(BUILD)/%.o: %.S
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/user/%.o: user/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/user/%.o: user/%.S
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/user/hello.elf: $(USER_OBJS) user/link.ld
+	$(LD) -nostdlib -static -z max-page-size=4096 -T user/link.ld $(USER_OBJS) -o $@
+
+$(BUILD)/kernel/userblob.o: $(BUILD)/user/hello.elf
 
 $(KERNEL): $(OBJS) linker.ld
 	$(LD) $(LDFLAGS) $(OBJS) -o $@

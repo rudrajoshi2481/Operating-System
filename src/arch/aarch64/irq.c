@@ -19,12 +19,14 @@ void irq_dispatch(struct trap_frame *frame)
     if (intid >= 1020)
         return;
 
+    /* EOI before dispatch: a handler may preempt via swtch() and not
+     * return until the interrupted thread is rescheduled. */
+    gic_eoi(iar);
+
     if (handlers[intid])
         handlers[intid](frame);
     else
         kprint("irq: unhandled intid %u\n", intid);
-
-    gic_eoi(iar);
 }
 
 void irq_unmask(void)

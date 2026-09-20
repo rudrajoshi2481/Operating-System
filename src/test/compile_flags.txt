@@ -1,0 +1,7 @@
+-I..
+-I../kernel
+-I.
+-fsanitize=address,undefined
+-Wall
+-Wextra
+-Werror

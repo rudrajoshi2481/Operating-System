@@ -1,0 +1,4 @@
+# Freestanding kernel: memset/memcpy & friends are clang builtins, so
+# include-cleaner wrongly reports lib.h (which declares them) as unused.
+Diagnostics:
+  UnusedIncludes: None

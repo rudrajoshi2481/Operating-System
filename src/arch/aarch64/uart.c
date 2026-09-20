@@ -4,6 +4,7 @@
 #define UART_DR    0x00
 #define UART_FR    0x18
 #define UART_FR_TXFF (1u << 5)
+#define UART_FR_RXFE (1u << 4)
 
 static volatile uint32_t *uart;
 
@@ -29,4 +30,13 @@ void uart_write(const char *s)
             uart_putc('\r');
         uart_putc(*s++);
     }
+}
+
+int uart_getc(void)
+{
+    if (!uart_ready)
+        return -1;
+    if (uart[UART_FR / 4] & UART_FR_RXFE)
+        return -1;
+    return (int)(uart[UART_DR / 4] & 0xff);
 }
