@@ -10,6 +10,9 @@ stack_top:
 _start:
     adrp x9, stack_top
     add  x9, x9, :lo12:stack_top
+    msr  spsel, #0
+    mov  sp, x9
+    msr  spsel, #1
     mov  sp, x9
     mov  fp, xzr
 

@@ -15,16 +15,17 @@ CFLAGS  := --target=aarch64-none-elf -ffreestanding -nostdlib \
 
 LDFLAGS := -nostdlib -static -z max-page-size=4096 -T linker.ld
 
-C_SRCS   := kernel/main.c kernel/kprint.c kernel/panic.c \
-            arch/aarch64/uart.c arch/aarch64/mmio.c
-ASM_SRCS := arch/aarch64/boot.S arch/aarch64/vectors.S
+C_SRCS   := kernel/main.c kernel/kprint.c kernel/panic.c kernel/exception.c \
+            kernel/lib.c kernel/pmm.c kernel/heap.c kernel/thread.c \
+            arch/aarch64/uart.c arch/aarch64/mmio.c arch/aarch64/gic.c \
+            arch/aarch64/irq.c arch/aarch64/timer.c arch/aarch64/vmm.c
+ASM_SRCS := arch/aarch64/boot.S arch/aarch64/vectors.S arch/aarch64/switch.S
 OBJS     := $(C_SRCS:%.c=$(BUILD)/%.o) $(ASM_SRCS:%.S=$(BUILD)/%.o)
 
-QFLAGS  := -M virt -accel hvf -cpu host -m 256M \
+QFLAGS  := -M virt,gic-version=3 -accel hvf -cpu host -m 256M \
            -bios $(EDK2) \
            -drive if=none,id=esp,format=raw,file=$(IMG) \
-           -device virtio-blk-device,drive=esp \
-           -display none
+           -device virtio-blk-device,drive=esp
 
 all: $(KERNEL)
 
@@ -43,7 +44,10 @@ $(IMG): $(KERNEL) limine.conf
 	sh scripts/mkimg.sh $(IMG) $(KERNEL) $(LIMINE)
 
 run: $(IMG)
-	$(QEMU) $(QFLAGS) -serial stdio
+	$(QEMU) $(QFLAGS) -display none -serial stdio
+
+run-ui: $(IMG)
+	$(QEMU) $(QFLAGS) -device virtio-gpu-device -display cocoa -serial stdio
 
 test: $(IMG)
 	@QEMU="$(QEMU)" QFLAGS="$(QFLAGS)" sh scripts/smoke.sh
@@ -51,4 +55,17 @@ test: $(IMG)
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all run test clean
+# Host-side unit tests (C survival kit): allocator logic compiled for macOS
+# with ASan/UBSan. Same .c files the kernel links.
+HOSTCC   := clang
+HOSTFLAGS := -fsanitize=address,undefined -g -O1 -Wall -Wextra -Werror \
+             -I. -Ikernel -Itest
+HOSTSRC  := kernel/pmm.c kernel/heap.c kernel/lib.c
+
+check:
+	$(HOSTCC) $(HOSTFLAGS) test/pmm_test.c  kernel/pmm.c kernel/lib.c test/stub.c -o $(BUILD)/pmm_test
+	$(HOSTCC) $(HOSTFLAGS) test/heap_test.c $(HOSTSRC) test/stub.c -o $(BUILD)/heap_test
+	./$(BUILD)/pmm_test
+	./$(BUILD)/heap_test
+
+.PHONY: all run run-ui test check clean

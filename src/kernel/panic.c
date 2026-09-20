@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stdint.h>
 
 #include "kprint.h"
@@ -12,4 +13,15 @@ void panic_dump(void)
     __asm__ volatile("mrs %0, far_el1" : "=r"(far));
 
     kprint("PANIC esr=%lx elr=%lx far=%lx\n", esr, elr, far);
+}
+
+void kpanic(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    kprint("PANIC: ");
+    kvprint(fmt, ap);
+    kprint("\n");
+    va_end(ap);
+    hcf();
 }

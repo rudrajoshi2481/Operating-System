@@ -43,6 +43,9 @@ SECTIONS
         *(.bss .bss.*)
     } :data
 
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+    _kernel_end = .;
+
     /DISCARD/ : {
         *(.eh_frame*)
         *(.note .note.*)

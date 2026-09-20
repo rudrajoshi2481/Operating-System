@@ -6,13 +6,13 @@ set -u
 LOG=build/serial.log
 rm -f "$LOG"
 
-$QEMU $QFLAGS -serial file:"$LOG" &
+$QEMU $QFLAGS -display none -serial file:"$LOG" &
 PID=$!
 sleep 8
 kill "$PID" 2>/dev/null
 wait "$PID" 2>/dev/null
 
-if grep -q BIOOS_OK "$LOG"; then
+if grep -q BIOOS_OK "$LOG" && grep -q "tick" "$LOG"; then
     echo "smoke: PASS"
 else
     echo "smoke: FAIL"
