@@ -11,5 +11,10 @@ learn/
 *.img
 *.qcow2
 
+# Vendored bootloader + build dir
+limine/
+src/build/
+*.log
+
 # macOS junk
 .DS_Store

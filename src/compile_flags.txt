@@ -1,0 +1,12 @@
+--target=aarch64-none-elf
+-ffreestanding
+-nostdlib
+-mgeneral-regs-only
+-fno-stack-protector
+-fno-PIC
+-Wall
+-Wextra
+-Werror
+-I.
+-Ikernel
+-Iarch/aarch64
