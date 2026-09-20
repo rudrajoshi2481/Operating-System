@@ -17,6 +17,7 @@
 #define OBJ_PROTOCOL   11
 #define OBJ_INSTRUMENT 12
 #define OBJ_EXPERIMENT 13
+#define OBJ_AUDIT      14
 
 #define OBJ_MAX_SIZE (64 * 1024)
 

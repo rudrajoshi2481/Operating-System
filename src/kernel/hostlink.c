@@ -13,6 +13,7 @@
  */
 #include "hostlink.h"
 #include "codec.h"
+#include "gate.h"
 #include "heap.h"
 #include "kprint.h"
 #include "lib.h"
@@ -122,6 +123,18 @@ void hostlink_main(void *arg)
             if (c == '\n' || c == '\r') {
                 if (n) {
                     line[n] = 0;
+                    if (memcmp(line, "act ", 4) == 0) {
+                        static char rep[4096];
+                        int rn = gate_act(line, rep, sizeof(rep) - 2);
+                        if (rn > 0) {
+                            con_write(rep, (uint32_t)rn);
+                            if (rep[rn - 1] != '\n')
+                                con_write("\n", 1);
+                        }
+                        con_write(".\n", 2);   /* end-of-reply sentinel */
+                        n = 0;
+                        continue;
+                    }
                     if (try_ingest(line)) {
                         n = 0;
                         continue;

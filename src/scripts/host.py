@@ -25,12 +25,21 @@ def connect() -> socket.socket:
     sys.exit(1)
 
 
-def reply(s: socket.socket) -> int:
+def reply(s: socket.socket, act: bool = False) -> int:
     s.settimeout(10)
     try:
-        data = s.recv(8192)
+        data = b""
+        while True:
+            chunk = s.recv(8192)
+            if not chunk:
+                break
+            data += chunk
+            if not act or data.endswith(b"\n.\n"):
+                break
+        if act and data.endswith(b"\n.\n"):
+            data = data[:-2]
         print(data.decode(errors="replace"), end="")
-        return 0 if data.startswith(b"ok") else 1
+        return 0 if data.startswith(b"ok") or act else 1
     except socket.timeout:
         print("host.py: no reply", file=sys.stderr)
         return 1
@@ -54,7 +63,7 @@ def main() -> int:
         return reply(s)
 
     s.sendall((" ".join(args)).encode() + b"\n")
-    return reply(s)
+    return reply(s, act=args[0] == "act")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 #include "uri.h"
 #include "array.h"
 #include "caps.h"
+#include "gate.h"
 #include "instr.h"
 #include "kprint.h"
 #include "lib.h"
@@ -67,6 +68,10 @@ int uri_read(const char *uri, void *buf, uint32_t cap)
             return instr_fmt(b, cap);
         if (scheme_is(name, "caps"))
             return cap_fmt(b, cap);
+        if (scheme_is(name, "audit"))
+            return gate_fmt_audit(b, cap);
+        if (scheme_is(name, "approvals"))
+            return gate_fmt_pending(b, cap);
         return -1;
     }
 

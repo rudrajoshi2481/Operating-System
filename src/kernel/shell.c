@@ -14,6 +14,7 @@
 #include "array.h"
 #include "caps.h"
 #include "exp.h"
+#include "gate.h"
 #include "instr.h"
 
 extern char _user_hello_start[];
@@ -333,6 +334,13 @@ static void run_cmd(char *cmd)
         } else {
             kprint("usage: exp new|add|close ...\n");
         }
+    } else if (memcmp(cmd, "approve ", 8) == 0) {
+        /* approve <reqid> — grant a pending agent execute request */
+        uint32_t id = 0;
+        const char *p = cmd + 8;
+        while (*p >= '0' && *p <= '9')
+            id = id * 10 + (uint32_t)(*p++ - '0');
+        gate_approve(id);
     } else if (eq(cmd, "objects")) {
         uint8_t buf[2048];
         int n = uri_read("sys://objects", buf, sizeof(buf) - 1);
