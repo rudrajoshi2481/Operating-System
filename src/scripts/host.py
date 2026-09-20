@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # host.py — host side of the BioOS virtio-console channel.
-# Usage: python3 scripts/host.py "ping"      (send a line, print reply)
-#        python3 scripts/host.py -f file.bin (send file bytes)
+# Usage: python3 scripts/host.py "ping"        send a line, print reply
+#        python3 scripts/host.py -f file.bin   ingest raw bytes -> object
+#        python3 scripts/host.py --vcf f.vcf   ingest VCF -> variants array
+#        python3 scripts/host.py lineage <hex> pull lineage graph
 # Socket path: build/host.sock (created by QEMU's chardev).
+import os
 import socket
 import sys
 import time
@@ -10,34 +13,48 @@ import time
 SOCK = "build/host.sock"
 
 
-def main() -> int:
+def connect() -> socket.socket:
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     for _ in range(50):                       # QEMU may not be up yet
         try:
             s.connect(SOCK)
-            break
+            return s
         except OSError:
             time.sleep(0.1)
-    else:
-        print("host.py: cannot connect to", SOCK, file=sys.stderr)
-        return 1
+    print("host.py: cannot connect to", SOCK, file=sys.stderr)
+    sys.exit(1)
 
-    s.settimeout(5)
-    if len(sys.argv) > 1 and sys.argv[1] == "-f":
-        with open(sys.argv[2], "rb") as f:
-            s.sendall(f.read())
-        print("sent", sys.argv[2])
-        return 0
 
-    msg = " ".join(sys.argv[1:]) or "ping"
-    s.sendall(msg.encode() + b"\n")
+def reply(s: socket.socket) -> int:
+    s.settimeout(10)
     try:
-        data = s.recv(4096)
+        data = s.recv(8192)
         print(data.decode(errors="replace"), end="")
+        return 0 if data.startswith(b"ok") else 1
     except socket.timeout:
         print("host.py: no reply", file=sys.stderr)
         return 1
-    return 0
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if not args:
+        args = ["ping"]
+
+    s = connect()
+    if args[0] == "-f":
+        path = args[1]
+        data = open(path, "rb").read()
+        name = os.path.basename(path)
+        s.sendall(f"putfile {name} {len(data)}\n".encode() + data)
+        return reply(s)
+    if args[0] == "--vcf":
+        data = open(args[1], "rb").read()
+        s.sendall(f"putvcf {len(data)}\n".encode() + data)
+        return reply(s)
+
+    s.sendall((" ".join(args)).encode() + b"\n")
+    return reply(s)
 
 
 if __name__ == "__main__":
