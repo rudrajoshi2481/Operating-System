@@ -4,7 +4,7 @@
 set -u
 
 LOG=build/serial.log
-rm -f "$LOG"
+rm -f "$LOG" build/host.sock
 
 $QEMU $QFLAGS -display none -serial file:"$LOG" &
 PID=$!
@@ -13,7 +13,9 @@ kill "$PID" 2>/dev/null
 wait "$PID" 2>/dev/null
 
 if grep -q BIOOS_OK "$LOG" && grep -q "tick" "$LOG" \
-        && grep -q "hello from EL0" "$LOG"; then
+        && grep -q "hello from EL0" "$LOG" \
+        && grep -q "virtio-blk:" "$LOG" \
+        && grep -q "virtio-console:" "$LOG"; then
     echo "smoke: PASS"
 else
     echo "smoke: FAIL"

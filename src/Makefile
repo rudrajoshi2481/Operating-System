@@ -18,7 +18,8 @@ LDFLAGS := -nostdlib -static -z max-page-size=4096 -T linker.ld
 C_SRCS   := kernel/main.c kernel/kprint.c kernel/panic.c kernel/exception.c \
             kernel/lib.c kernel/pmm.c kernel/heap.c kernel/thread.c \
             kernel/proc.c kernel/syscall.c kernel/shell.c \
-            drivers/virtio_blk.c \
+            drivers/virtio_mmio.c drivers/virtio_blk.c \
+            drivers/virtio_console.c kernel/hostlink.c \
             arch/aarch64/uart.c arch/aarch64/mmio.c arch/aarch64/gic.c \
             arch/aarch64/irq.c arch/aarch64/timer.c arch/aarch64/vmm.c
 ASM_SRCS := arch/aarch64/boot.S arch/aarch64/vectors.S arch/aarch64/switch.S \
@@ -30,7 +31,10 @@ OBJS     := $(C_SRCS:%.c=$(BUILD)/%.o) $(ASM_SRCS:%.S=$(BUILD)/%.o)
 QFLAGS  := -M virt,gic-version=3 -accel hvf -cpu host -m 256M \
            -bios $(EDK2) \
            -drive if=none,id=esp,format=raw,file=$(IMG) \
-           -device virtio-blk-device,drive=esp
+           -device virtio-blk-device,drive=esp \
+           -device virtio-serial-device \
+           -chardev socket,id=hchan,path=$(BUILD)/host.sock,server=on,wait=off \
+           -device virtconsole,chardev=hchan
 
 all: $(KERNEL)
 

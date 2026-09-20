@@ -18,6 +18,8 @@
 #include "thread.h"
 #include "timer.h"
 #include "virtio_blk.h"
+#include "virtio_console.h"
+#include "hostlink.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -119,8 +121,11 @@ void kernel_main(void)
     thread_create(spinner, "B");
     proc_exec(_user_hello_start);
     thread_create(shell_main, 0);
+    thread_create(hostlink_main, 0);
 
     gic_init(hhdm);
+    if (con_init(hhdm) != 0)
+        kprint("virtio-console: not found\n");
     timer_init();
     irq_unmask();
     kprint("interrupts armed\n");
