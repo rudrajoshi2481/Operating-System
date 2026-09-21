@@ -13,6 +13,7 @@
 #   /api/obj/<hex>         object bytes as base64 + type
 import base64
 import json
+import os
 import socket
 import sys
 import threading
@@ -20,7 +21,9 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-SOCK = "build/host.sock"
+# QEMU creates the console socket under build/<arch>/; override with
+# BIOOS_SOCK for the x86_64 build.
+SOCK = os.environ.get("BIOOS_SOCK", "build/aarch64/host.sock")
 PORT = 8471
 
 _lock = threading.Lock()          # the console socket is half-duplex

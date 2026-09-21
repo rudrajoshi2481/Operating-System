@@ -49,7 +49,7 @@ ARCH_C_SRCS   := arch/x86_64/serial.c arch/x86_64/idt.c arch/x86_64/timer.c \
 ARCH_ASM_SRCS := arch/x86_64/boot.S arch/x86_64/isr.S arch/x86_64/switch.S
 ARCH_DRV_SRCS :=
 BOOTEFI := BOOTX64.EFI
-GPUDEV  := virtio-gpu-pci,disable-modern=on
+GPUDEV  :=
 QFLAGS  := -M q35 -accel tcg -cpu max -m 256M \
            -drive if=pflash,format=raw,readonly=on,file=$(EDK2) \
            -drive if=none,id=esp,format=raw,file=$(IMG) \
@@ -69,6 +69,7 @@ SHARED_C_SRCS := kernel/main.c kernel/kprint.c kernel/panic.c \
                  kernel/caps.c kernel/instr.c kernel/exp.c kernel/gate.c \
                  kernel/fb.c kernel/ui.c \
                  drivers/virtio_blk.c drivers/virtio_console.c \
+                 drivers/virtio_gpu.c \
                  kernel/hostlink.c
 
 C_SRCS   := $(SHARED_C_SRCS) $(ARCH_C_SRCS) $(ARCH_DRV_SRCS)
@@ -113,7 +114,7 @@ run: $(IMG) $(STORE)
 	$(QEMU) $(QFLAGS) -display none -serial stdio
 
 run-ui: $(IMG) $(STORE)
-	$(QEMU) $(QFLAGS) -device $(GPUDEV) -display cocoa -serial stdio
+	$(QEMU) $(QFLAGS) $(if $(GPUDEV),-device $(GPUDEV),) -display cocoa -serial stdio
 
 test: $(IMG) $(STORE)
 	@QEMU="$(QEMU)" QFLAGS="$(QFLAGS)" BUILD="$(BUILD)" ARCH="$(ARCH)" sh scripts/smoke.sh

@@ -11,7 +11,7 @@ import socket
 import sys
 import time
 
-SOCK = os.environ.get("BIOOS_SOCK", "build/host.sock")
+SOCK = os.environ.get("BIOOS_SOCK", "build/aarch64/host.sock")
 
 
 def connect() -> socket.socket:

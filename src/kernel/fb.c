@@ -10,6 +10,7 @@
 #include "kprint.h"
 #include "limine.h"
 #include "lib.h"
+#include "virtio_gpu.h"
 
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_framebuffer_request fb_req = {
@@ -19,27 +20,45 @@ static volatile struct limine_framebuffer_request fb_req = {
 
 static volatile uint32_t *fb;
 static uint32_t fb_w, fb_h, fb_pitch;   /* pitch in pixels */
-static int ready;
+static int ready, gpu_backed;
 
 int fb_init(uint64_t hhdm)
 {
-    (void)hhdm;
-    if (!fb_req.response || !fb_req.response->framebuffer_count)
-        return -1;
-    struct limine_framebuffer *f = fb_req.response->framebuffers[0];
-    if (f->bpp != 32)
-        return -2;
-    fb = (volatile uint32_t *)f->address;   /* limine gives an HHDM VA */
-    fb_w = (uint32_t)f->width;
-    fb_h = (uint32_t)f->height;
-    fb_pitch = (uint32_t)(f->pitch / 4);
-    ready = 1;
-    fb_clear(0x101418);
-    kprint("fb: %ux%u\n", fb_w, fb_h);
-    return 0;
+    if (fb_req.response && fb_req.response->framebuffer_count) {
+        struct limine_framebuffer *f = fb_req.response->framebuffers[0];
+        if (f->bpp == 32) {
+            fb = (volatile uint32_t *)f->address;  /* HHDM VA already */
+            fb_w = (uint32_t)f->width;
+            fb_h = (uint32_t)f->height;
+            fb_pitch = (uint32_t)(f->pitch / 4);
+            ready = 1;
+            fb_clear(0x101418);
+            kprint("fb: %ux%u (limine gop)\n", fb_w, fb_h);
+            return 0;
+        }
+    }
+    /* no firmware framebuffer (aarch64 edk2 has no virtio-gpu GOP):
+     * drive the gpu scanout ourselves */
+    if (gpu_init(hhdm) == 0) {
+        fb = gpu_fb(&fb_w, &fb_h, &fb_pitch);
+        if (fb) {
+            ready = 1;
+            gpu_backed = 1;
+            fb_clear(0x101418);
+            gpu_flush();
+            return 0;
+        }
+    }
+    return -1;
 }
 
 int fb_ok(void) { return ready; }
+
+void fb_sync(void)
+{
+    if (gpu_backed)
+        gpu_flush();
+}
 
 static void px(int x, int y, uint32_t rgb)
 {

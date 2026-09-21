@@ -192,6 +192,7 @@ void ui_render(int screen)
     case 2: scr_lineage();  break;
     case 3: scr_heatmap();  break;
     }
+    fb_sync();
 }
 
 int ui_screen(void)
