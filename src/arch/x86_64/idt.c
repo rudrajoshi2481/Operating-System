@@ -43,7 +43,7 @@ DECL(46); DECL(47);
 static void gate(int vec, void *fn)
 {
     uint64_t a = (uint64_t)fn;
-    uint16_t cs;
+    uint64_t cs;
     __asm__ volatile("mov %%cs, %0" : "=r"(cs));   /* limine's own kcode */
     idt[vec] = (struct idt_entry){
         .off_lo  = a & 0xffff,

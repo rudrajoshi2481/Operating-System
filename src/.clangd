@@ -2,3 +2,31 @@
 # include-cleaner wrongly reports lib.h (which declares them) as unused.
 Diagnostics:
   UnusedIncludes: None
+
+# Default target is aarch64; the fragment below retargets the x86-only
+# sources so cross-arch asm constraints and io.h resolve.
+CompileFlags:
+  Compiler: clang
+  Add: [
+    --target=aarch64-none-elf,
+    -ffreestanding, -nostdlib,
+    -mgeneral-regs-only,
+    -fno-stack-protector, -fno-stack-check, -fno-PIC,
+    -I., -Ikernel, -Iarch/aarch64, -Idrivers,
+  ]
+
+---
+If:
+  PathMatch: [.*arch/x86_64/.*, .*virtio_pci\.c]
+CompileFlags:
+  Remove: [
+    --target=aarch64-none-elf,
+    -mgeneral-regs-only,
+    -Iarch/aarch64,
+  ]
+  Add: [
+    --target=x86_64-none-elf,
+    -mcmodel=kernel,
+    -mno-red-zone, -mno-mmx, -mno-sse, -mno-sse2,
+    -Iarch/x86_64,
+  ]
