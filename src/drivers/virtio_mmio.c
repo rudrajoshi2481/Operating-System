@@ -59,6 +59,7 @@ int vio_probe(uint64_t hhdm, uint32_t devid, int instance,
             if (instance--)
                 continue;
             dev->base   = r;
+            dev->iobase = 0;
             dev->legacy = ver == 1;
             dev->irq    = VIO_IRQ(i);
             dev->devid  = devid;
@@ -71,7 +72,7 @@ int vio_probe(uint64_t hhdm, uint32_t devid, int instance,
 int vio_init(struct vdev *dev)
 {
     wr(dev, R_STATUS, 0);               /* reset */
-    __asm__ volatile("dmb sy" ::: "memory");
+    __sync_synchronize();
     wr(dev, R_STATUS, S_ACK);
     wr(dev, R_STATUS, S_ACK | S_DRIVER);
 
@@ -133,7 +134,12 @@ void vio_driver_ok(struct vdev *dev)
 {
     wr(dev, R_STATUS,
          S_ACK | S_DRIVER | (dev->legacy ? 0 : S_FEAT_OK) | S_DRIVER_OK);
-    __asm__ volatile("dmb sy" ::: "memory");
+    __sync_synchronize();
+}
+
+void vio_notify(struct virtqueue *q)
+{
+    *(volatile uint32_t *)(q->dev->base + 0x50) = q->idx;
 }
 
 uint32_t vio_isr(struct vdev *dev)

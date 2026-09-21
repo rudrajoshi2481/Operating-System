@@ -101,7 +101,7 @@ static int blk_rw(struct blkdev *d, uint32_t type, uint64_t lba,
 
     for (uint64_t t = 0; t < TIMEOUT; t++) {
         if (d->q.used->idx != d->q.last_used) {
-            __asm__ volatile("dmb sy" ::: "memory");
+            __sync_synchronize();
             uint32_t id = d->q.used->ring[d->q.last_used % QSIZE].id;
             d->q.last_used++;
             vio_isr(&d->dev);

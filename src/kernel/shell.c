@@ -2,7 +2,9 @@
 #include "kprint.h"
 #include "lib.h"
 #include "pmm.h"
+#ifdef __aarch64__
 #include "proc.h"
+#endif
 #include "thread.h"
 #include "uart.h"
 #include "virtio_blk.h"
@@ -18,7 +20,9 @@
 #include "instr.h"
 #include "ui.h"
 
+#ifdef __aarch64__
 extern char _user_hello_start[];
+#endif
 
 static int eq(const char *a, const char *b)
 {
@@ -60,7 +64,11 @@ static void run_cmd(char *cmd)
         kprint("free: %lu frames (%lu MiB)\n", pmm_free_frames(),
                pmm_free_frames() * 4096 / (1024 * 1024));
     } else if (eq(cmd, "run")) {
+#ifdef __aarch64__
         proc_exec(_user_hello_start);
+#else
+        kprint("run: no userspace on x86_64 yet\n");
+#endif
     } else if (cmd[0] == 'p' && cmd[1] == 'u' && cmd[2] == 't' &&
                cmd[3] == ' ') {
         const char *msg = cmd + 4;

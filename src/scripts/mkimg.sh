@@ -1,5 +1,6 @@
 #!/bin/sh
-# mkimg.sh <img> <kernel.elf> <limine-dir>
+# mkimg.sh <img> <kernel.elf> <limine-dir> [bootefi]
+# bootefi defaults to BOOTAA64.EFI; pass BOOTX64.EFI for x86_64.
 # Builds a 64 MiB FAT32 ESP image containing Limine, limine.conf, kernel.elf.
 set -e
 
@@ -33,7 +34,7 @@ DEV=""
 MDEV=$(hdiutil attach -mountpoint "$MNT" "$IMG" | awk '/\/dev\// {print $1; exit}')
 
 mkdir -p "$MNT/EFI/BOOT"
-cp "$LIMINE/BOOTAA64.EFI" "$MNT/EFI/BOOT/"
+cp "$LIMINE/${4:-BOOTAA64.EFI}" "$MNT/EFI/BOOT/"
 cp limine.conf "$MNT/"
 cp "$KERNEL" "$MNT/kernel.elf"
 

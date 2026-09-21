@@ -4,13 +4,14 @@
 #        python3 scripts/host.py -f file.bin   ingest raw bytes -> object
 #        python3 scripts/host.py --vcf f.vcf   ingest VCF -> variants array
 #        python3 scripts/host.py lineage <hex> pull lineage graph
-# Socket path: build/host.sock (created by QEMU's chardev).
+# Socket path: build/<arch>/host.sock (created by QEMU's chardev).
+# Override with BIOOS_SOCK.
 import os
 import socket
 import sys
 import time
 
-SOCK = "build/host.sock"
+SOCK = os.environ.get("BIOOS_SOCK", "build/host.sock")
 
 
 def connect() -> socket.socket:

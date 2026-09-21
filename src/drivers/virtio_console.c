@@ -14,7 +14,9 @@
 #include "spinlock.h"
 #include "thread.h"
 #include "irq.h"
+#ifdef __aarch64__
 #include "gic.h"
+#endif
 
 #define QSIZE       32
 #define RX_BUFS     8
@@ -40,7 +42,7 @@ static volatile uint32_t rx_dropped;
 static void rx_drain(void)
 {
     while (rxq.used->idx != rxq.last_used) {
-        __asm__ volatile("dmb sy" ::: "memory");
+        __sync_synchronize();
         struct vq_used_elem e = rxq.used->ring[rxq.last_used % rxq.qsize];
         rxq.last_used++;
         uint16_t id = (uint16_t)e.id;
@@ -56,14 +58,15 @@ static void rx_drain(void)
             rx_ring[rx_head] = src[i];
             rx_head = n;
         }
-        __asm__ volatile("dmb sy" ::: "memory");
+        __sync_synchronize();
         rxq.avail->ring[rxq.avail->idx % rxq.qsize] = id;
         rxq.avail->idx++;
     }
-    __asm__ volatile("dmb sy" ::: "memory");
+    __sync_synchronize();
     vio_notify(&rxq);
 }
 
+#ifdef __aarch64__
 static void con_irq(struct trap_frame *f)
 {
     (void)f;
@@ -74,6 +77,7 @@ static void con_irq(struct trap_frame *f)
         txq.last_used++;
     wakeup(rx_chan);
 }
+#endif
 
 int con_init(uint64_t hhdm)
 {
@@ -101,13 +105,16 @@ int con_init(uint64_t hhdm)
         rxq.desc[i].next  = 0;
         rxq.avail->ring[i] = (uint16_t)i;
     }
-    __asm__ volatile("dmb sy" ::: "memory");
+    __sync_synchronize();
     rxq.avail->idx = RX_BUFS;
-    __asm__ volatile("dmb sy" ::: "memory");
+    __sync_synchronize();
     vio_notify(&rxq);
 
+#ifdef __aarch64__
     irq_register(dev.irq, con_irq);
     gic_enable(dev.irq, 0x90);
+#endif
+    /* x86_64: dev.irq == -1, con_wait() polls the used ring instead */
 
     ready = 1;
     kprint("virtio-console: host channel up, irq %d (%s)\n",
@@ -125,7 +132,7 @@ int con_write(const void *buf, uint32_t len)
     while (len) {
         uint32_t chunk = len > TX_BUFLEN ? TX_BUFLEN : len;
         memcpy((void *)tx_va, p, chunk);
-        __asm__ volatile("dmb sy" ::: "memory");
+        __sync_synchronize();
 
         uint16_t expect = txq.last_used + 1;
         txq.desc[0].addr  = tx_phys;
@@ -142,7 +149,7 @@ int con_write(const void *buf, uint32_t len)
             break;
         }
         txq.last_used++;
-        __asm__ volatile("dmb sy" ::: "memory");
+        __sync_synchronize();
         p += chunk;
         len -= chunk;
     }
@@ -163,6 +170,17 @@ int con_read(void *buf, uint32_t len)
 
 void con_wait(void)
 {
-    while (rx_tail == rx_head)
+    while (rx_tail == rx_head) {
+        if (dev.irq < 0) {              /* polled transport (x86 pci) */
+            rx_drain();
+            if (rx_tail == rx_head) {
+                while (txq.used->idx != txq.last_used)
+                    txq.last_used++;
+                yield();
+                continue;
+            }
+            break;
+        }
         sleep_on(rx_chan);
+    }
 }

@@ -20,7 +20,7 @@
 #define VIO_DEV_BLK     2
 #define VIO_DEV_CONSOLE 3
 
-#define VIRTQ_MAX       128
+#define VIRTQ_MAX       256
 
 struct vq_desc {
     uint64_t addr;
@@ -50,9 +50,10 @@ struct vq_used {
 };
 
 struct vdev {
-    volatile uint8_t *base;
+    volatile uint8_t *base;             /* mmio regs (aarch64) */
+    uint16_t          iobase;           /* pci io port (x86_64) */
     int               legacy;
-    int               irq;              /* GIC INTID */
+    int               irq;              /* GIC INTID; -1 = polled */
     uint32_t          devid;
 };
 
@@ -90,18 +91,16 @@ uint64_t vio_cfg64(struct vdev *dev, uint32_t off);
 uint32_t vio_cfg32(struct vdev *dev, uint32_t off);
 uint16_t vio_cfg16(struct vdev *dev, uint32_t off);
 
-/* Ring helpers — caller publishes descs, then: */
-static inline void vio_notify(struct virtqueue *q)
-{
-    *(volatile uint32_t *)(q->dev->base + 0x50) = q->idx;
-}
+/* Notify the device about new available buffers (transport-defined). */
+void vio_notify(struct virtqueue *q);
 
+/* Ring helper — caller publishes descs, then: */
 static inline void vio_push(struct virtqueue *q, uint16_t head)
 {
-    __asm__ volatile("dmb sy" ::: "memory");
+    __sync_synchronize();
     q->avail->ring[q->avail->idx % q->qsize] = head;
-    __asm__ volatile("dmb sy" ::: "memory");
+    __sync_synchronize();
     q->avail->idx++;
-    __asm__ volatile("dmb sy" ::: "memory");
+    __sync_synchronize();
     vio_notify(q);
 }

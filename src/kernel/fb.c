@@ -23,12 +23,13 @@ static int ready;
 
 int fb_init(uint64_t hhdm)
 {
+    (void)hhdm;
     if (!fb_req.response || !fb_req.response->framebuffer_count)
         return -1;
     struct limine_framebuffer *f = fb_req.response->framebuffers[0];
     if (f->bpp != 32)
         return -2;
-    fb = (volatile uint32_t *)((uintptr_t)f->address + hhdm);
+    fb = (volatile uint32_t *)f->address;   /* limine gives an HHDM VA */
     fb_w = (uint32_t)f->width;
     fb_h = (uint32_t)f->height;
     fb_pitch = (uint32_t)(f->pitch / 4);

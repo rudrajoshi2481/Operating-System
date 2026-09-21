@@ -6,6 +6,7 @@
 
 void panic_dump(void)
 {
+#ifdef __aarch64__
     uint64_t esr, elr, far;
 
     __asm__ volatile("mrs %0, esr_el1" : "=r"(esr));
@@ -13,6 +14,9 @@ void panic_dump(void)
     __asm__ volatile("mrs %0, far_el1" : "=r"(far));
 
     kprint("PANIC esr=%lx elr=%lx far=%lx\n", esr, elr, far);
+#else
+    kprint("PANIC (x86_64)\n");
+#endif
 }
 
 void kpanic(const char *fmt, ...)

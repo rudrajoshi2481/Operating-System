@@ -25,9 +25,11 @@ struct thread {
 
 extern void swtch(uint64_t *save_sp, uint64_t load_sp);
 extern void thread_trampoline(void);
+#ifdef __aarch64__
 extern void user_trampoline(void);
 extern void enter_el0(uint64_t entry, uint64_t usp, uint64_t pgd,
                       uint64_t kstack_top);
+#endif
 
 static struct thread  threads[NTHREADS];
 static struct thread *cur;
@@ -52,6 +54,7 @@ static void schedule(void)
         return;
     next->state = T_RUNNING;
     cur = next;
+#ifdef __aarch64__
     if (next->pgd && next->pgd != prev->pgd)
         __asm__ volatile(
             "msr ttbr0_el1, %0\n"
@@ -59,6 +62,8 @@ static void schedule(void)
             "tlbi vmalle1\n"
             "dsb sy\n"
             "isb\n" :: "r"(next->pgd));
+#endif
+    /* x86_64: no per-process CR3 yet — all threads are kernel threads */
     swtch(&prev->ksp, next->ksp);
 }
 
@@ -107,17 +112,27 @@ int thread_create(thread_fn fn, void *arg)
     assert(t->stack);
 
     uint64_t *sp = (uint64_t *)(((uintptr_t)t->stack + STACK_SIZE) & ~15ULL);
+#ifdef __aarch64__
     sp -= 12;
     memset(sp, 0, 96);
     sp[0]  = (uint64_t)fn;                 /* x19 */
     sp[1]  = (uint64_t)arg;                /* x20 */
     sp[10] = 0;                            /* x29 */
     sp[11] = (uint64_t)thread_trampoline;  /* x30 */
+#else
+    /* x86_64 frame (low->high): r15 r14 r13 r12 rbx rbp ret */
+    sp -= 7;
+    memset(sp, 0, 56);
+    sp[0] = (uint64_t)fn;                  /* r15 */
+    sp[1] = (uint64_t)arg;                 /* r14 */
+    sp[6] = (uint64_t)thread_trampoline;   /* ret addr */
+#endif
     t->ksp = (uint64_t)sp;
 
     return t->id;
 }
 
+#ifdef __aarch64__
 int thread_spawn_user(uint64_t entry, uint64_t usp, uint64_t pgd)
 {
     irq_mask();
@@ -174,6 +189,7 @@ uint64_t cur_pgd(void)
 {
     return cur->pgd;
 }
+#endif /* __aarch64__ (user threads) */
 
 int sched_fmt(char *buf, uint32_t cap)
 {
@@ -257,6 +273,8 @@ void thread_exit(void)
 /* Called from the timer IRQ handler with IRQs masked. */
 void sched_tick(void)
 {
+    if (!cur)                   /* tick before sched_init (early sti) */
+        return;
     uint64_t now = timer_ticks();
 
     spin_lock(&sched_lock);

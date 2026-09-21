@@ -6,14 +6,18 @@
 #include "heap.h"
 #include "kprint.h"
 #include "lib.h"
+#ifdef __aarch64__
 #include "mmio.h"
+#endif
 #include "panic.h"
 #include "pmm.h"
 #include "proc.h"
 #include "shell.h"
 #include "uart.h"
+#ifdef __aarch64__
 #include "vmm.h"
 #include "gic.h"
+#endif
 #include "irq.h"
 #include "thread.h"
 #include "timer.h"
@@ -25,6 +29,9 @@
 #include "instr.h"
 #include "fb.h"
 #include "ui.h"
+#ifdef __x86_64__
+#include "idt.h"
+#endif
 
 __attribute__((used, section(".limine_requests")))
 static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -54,7 +61,9 @@ __attribute__((used, section(".limine_requests_end")))
 static volatile uint64_t limine_requests_end[] = LIMINE_REQUESTS_END_MARKER;
 
 extern char _kernel_end[];
+#ifdef __aarch64__
 extern char _user_hello_start[];
+#endif
 
 static void heap_selftest(void)
 {
@@ -80,18 +89,28 @@ void kernel_main(void)
         hcf();
 
     uint64_t hhdm = hhdm_request.response->offset;
+#ifdef __aarch64__
     int mmio_rc = mmio_map_low(hhdm);
+#endif
     uart_init(hhdm);
+#ifdef __aarch64__
     if (mmio_rc != 0)
         kpanic("mmio_map_low failed: %d", mmio_rc);
+#endif
 
     kprint("BIOOS_OK hello kernel (limine base rev %lu)\n",
            limine_base_revision[2]);
+
+#ifdef __x86_64__
+    x86_irq_init();             /* early: exceptions dump instead of
+                                   triple-faulting during device init */
+#endif
 
     int rc = pmm_init(memmap_request.response, hhdm);
     if (rc != 0)
         kpanic("pmm_init failed: %d", rc);
     heap_init();
+#ifdef __aarch64__
     vmm_init(hhdm, addr_request.response->physical_base,
              addr_request.response->virtual_base,
              (uint64_t)_kernel_end - addr_request.response->virtual_base,
@@ -99,6 +118,9 @@ void kernel_main(void)
     pmm_release_reclaimable(addr_request.response->physical_base,
                             (uint64_t)_kernel_end -
                                 addr_request.response->virtual_base);
+#endif
+    /* x86_64: keep Limine's page tables; reclaimable regions stay
+     * reserved so the bootloader-owned structures are never freed. */
 
     kprint("vmm: own page tables, pmm: %lu free frames (%lu MiB)\n",
            pmm_free_frames(), pmm_free_frames() * 4096 / (1024 * 1024));
@@ -124,12 +146,16 @@ void kernel_main(void)
     }
 
     sched_init();
+#ifdef __aarch64__
     proc_exec(_user_hello_start);
+#endif
     thread_create(shell_main, 0);
     thread_create(hostlink_main, 0);
 
+#ifdef __aarch64__
     gic_init(hhdm);
     uart_irq_init();
+#endif
     if (con_init(hhdm) != 0)
         kprint("virtio-console: not found\n");
     timer_init();
@@ -137,6 +163,11 @@ void kernel_main(void)
     kprint("interrupts armed\n");
 
     /* thread 0 becomes the idle loop */
-    for (;;)
+    for (;;) {
+#ifdef __aarch64__
         __asm__ volatile("wfi");
+#else
+        __asm__ volatile("sti; hlt");   /* hlt until the next IRQ */
+#endif
+    }
 }
