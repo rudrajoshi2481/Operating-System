@@ -7,3 +7,4 @@
  *   3 HEATMAP  byte heatmap of the newest array/chunk                */
 void ui_render(int screen);
 int  ui_screen(void);
+void ui_start(void);            /* spawn the refresh thread if fb_ok */

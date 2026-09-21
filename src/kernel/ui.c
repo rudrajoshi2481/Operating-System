@@ -199,3 +199,20 @@ int ui_screen(void)
 {
     return cur;
 }
+
+/* periodic refresh — keeps the window alive (uptime, thread states,
+ * new objects) without the user typing `ui` on serial. */
+static void ui_loop(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        ui_render(cur);
+        ksleep(50);                 /* ~0.5s at 100 Hz */
+    }
+}
+
+void ui_start(void)
+{
+    if (fb_ok())
+        thread_create(ui_loop, 0);
+}

@@ -151,6 +151,7 @@ void kernel_main(void)
 #endif
     thread_create(shell_main, 0);
     thread_create(hostlink_main, 0);
+    ui_start();                         /* auto-render if fb exists */
 
 #ifdef __aarch64__
     gic_init(hhdm);
